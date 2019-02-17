@@ -4,7 +4,9 @@ const request = require('request');
 const dialogflow = require('dialogflow');
 const uuid = require('uuid');
 
-
+function follow() {
+    api.sendMessage("What else can I tell you?", event.threadID);
+}
 
 //nlp 
 process.env.GOOGLE_APPLICATION_CREDENTIALS = './auth.json'
@@ -42,7 +44,7 @@ async function runSample(querytext, projectId = 'shapeshift-7d05c') {
   } else {
     console.log(`  No intent matched.`);
   }
-  return result.fulfillmentText;
+  return result;
 }
 
 
@@ -64,19 +66,62 @@ login({email: config.useraccount.email, password: config.useraccount.password}, 
             return stopListening();
         }
         else {
-            runSample(event.body).catch(console.error).then(function(reply) {
-                res = reply.split(" ");
-                action = res[0];
-                ticker = res[1];
-                request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
-                    api.sendMessage(error, event.threadID); // Print the error if one occurred
-                    api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
-                    if(body) {
-                        var data = JSON.parse(body);
-                        console.log(data)
-                        api.sendMessage(data['data']['symbol'] + " is " + data['data'][action], event.threadID);
+            runSample(event.body).catch(console.error).then(function(result) {
+                if(result.intent.displayName == "Default Welcome Intent") {
+                    api.sendMessage(result.fulfillmentText, event.threadID)
+                }
+                else if (result.intent.displayName == "Invest") {
+                    request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
+                        api.sendMessage(error, event.threadID); // Print the error if one occurred
+                        api.sendMessage("response" + response && response.statusCode, event.threadID);
+                        api.sendMessage(data['data']['symbol'] + " has changed by " + data['data'][action] + "% in the last 24 hours.", event.threadID, () => {
+                            if (data['data'][action] > 0){
+                                api.sendMessage("You should consider investing! If you sign into ShapeShift, I can invest for you.");
+                            }
+                            else {
+                                api.sendMessage("Looks like this isn't doing so well, maybe try something else?", event.threadID);
+                            }
+                        });
                     }
-                });
+                }
+                else {
+                    reply = result.fulfillmentText;
+                    res = reply.split(" ");
+                    action = res[0];
+                    ticker = res[1];
+                    request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
+                        api.sendMessage(error, event.threadID); // Print the error if one occurred
+                        api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
+                        if(body) {
+                            var data = JSON.parse(body);
+                            switch(action) {
+                                case 'priceUsd':
+                                    api.sendMessage(data['data']['symbol'] + " is $" + data['data'][action], event.threadID, () => { api.sendMessage("What else can I tell you?", event.threadID); });
+                                    break;
+                                case 'supply':
+                                    // code block
+                                    api.sendMessage("The supply of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("Anything else?", event.threadID); });
+                                    break;
+                                case 'volumeUsd24Hr':
+                                    // code block
+                                    api.sendMessage("The volume of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else can I help with?", event.threadID); });
+                                    break;
+                                case 'marketCapUsd':
+                                    // code block
+                                    api.sendMessage("The market cap  of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else do you want to know?", event.threadID); });
+                                    break;
+                                case 'changePercent24Hr':
+                                    // code block
+                                    api.sendMessage(data['data']['symbol'] + " has changed by " + data['data'][action], event.threadID + "% in the last 24 hours.");
+                                    break;
+                                default:
+                                    api.sendMessage(data['data']['symbol'] + " is " + data['data'][action], event.threadID);
+                            }
+                            
+                        }
+
+                    });
+                }
             })
         	
         }    
