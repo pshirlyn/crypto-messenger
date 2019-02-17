@@ -68,27 +68,38 @@ login({email: config.useraccount.email, password: config.useraccount.password}, 
         else {
             runSample(event.body).catch(console.error).then(function(result) {
                 if(result.intent.displayName == "Default Welcome Intent") {
-                    api.sendMessage(result.fulfillmentText, event.threadID)
+                    api.sendMessage(result.fulfillmentText, event.threadID);
                 }
+
                 else if (result.intent.displayName == "Invest") {
+                    ticker = result.fulfillmentText;
                     request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
                         api.sendMessage(error, event.threadID); // Print the error if one occurred
                         api.sendMessage("response" + response && response.statusCode, event.threadID);
-                        api.sendMessage(data['data']['symbol'] + " has changed by " + data['data'][action] + "% in the last 24 hours.", event.threadID, () => {
-                            if (data['data'][action] > 0){
-                                api.sendMessage("You should consider investing! If you sign into ShapeShift, I can invest for you.");
-                            }
-                            else {
-                                api.sendMessage("Looks like this isn't doing so well, maybe try something else?", event.threadID);
-                            }
-                        });
-                    }
+                        if (body) {
+                            var data = JSON.parse(body);
+
+                            api.sendMessage(data['data']['symbol'] + " has changed by " + data['data']['changePercent24Hr'] + "% in the last 24 hours.", event.threadID, () => {
+                                //console.log(data['data']['changePercent24Hr'])
+                                if (data['data']['changePercent24Hr'] > 0){
+                                    api.sendMessage("You should consider investing! If you sign into ShapeShift, I can even invest for you.", event.threadID);
+                                }
+                                else {
+                                    api.sendMessage("Looks like this isn't doing so well, maybe try something else?", event.threadID);
+                                }
+                            });
+                        }                        
+                    });
                 }
+
+                
                 else {
                     reply = result.fulfillmentText;
                     res = reply.split(" ");
                     action = res[0];
                     ticker = res[1];
+
+
                     request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
                         api.sendMessage(error, event.threadID); // Print the error if one occurred
                         api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
