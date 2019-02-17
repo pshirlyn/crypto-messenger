@@ -3,6 +3,10 @@ const config = require('./login');
 const request = require('request');
 const dialogflow = require('dialogflow');
 const uuid = require('uuid');
+const c3ChartMaker = require('c3-chart-maker');
+const fs = require("fs");
+
+
 
 function follow() {
     api.sendMessage("What else can I tell you?", event.threadID);
@@ -98,40 +102,83 @@ login({email: config.useraccount.email, password: config.useraccount.password}, 
                     res = reply.split(" ");
                     action = res[0];
                     ticker = res[1];
+                    if(action == "graph") {
+                        request('https://api.coincap.io/v2/assets/'+ticker+'/history?interval=h1', function (error, response, body) {
+                            api.sendMessage(error, event.threadID); // Print the error if one occurred
+                            api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
+                            if(body) {
+                                var res = JSON.parse(body);
+                                var wrangle = res['data'];
+                                // var final = []
+                                // for(var i = 0; i < wrangle.length; i++) {
+                                //     final.push(wrangle[i]['priceUsd']);
+                                // }
+                                const yourData = wrangle;
+                                const chartDefinition = { 
+                                    data: {
+                                       json: yourData,
+                                       keys: {
+                                           value: ['priceUsd'],
+                                       },
+                                       axis: {
+                                          x: {
+                                              type: 'timeseries',
+                                          }
+                                      }
+                                    }
+                                }
+                                const outputFilePath = "images/graph.png";
 
-
-                    request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
-                        api.sendMessage(error, event.threadID); // Print the error if one occurred
-                        api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
-                        if(body) {
-                            var data = JSON.parse(body);
-                            switch(action) {
-                                case 'priceUsd':
-                                    api.sendMessage(data['data']['symbol'] + " is $" + data['data'][action], event.threadID, () => { api.sendMessage("What else can I tell you?", event.threadID); });
-                                    break;
-                                case 'supply':
-                                    // code block
-                                    api.sendMessage("The supply of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("Anything else?", event.threadID); });
-                                    break;
-                                case 'volumeUsd24Hr':
-                                    // code block
-                                    api.sendMessage("The volume of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else can I help with?", event.threadID); });
-                                    break;
-                                case 'marketCapUsd':
-                                    // code block
-                                    api.sendMessage("The market cap  of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else do you want to know?", event.threadID); });
-                                    break;
-                                case 'changePercent24Hr':
-                                    // code block
-                                    api.sendMessage(data['data']['symbol'] + " has changed by " + data['data'][action], event.threadID + "% in the last 24 hours.");
-                                    break;
-                                default:
-                                    api.sendMessage(data['data']['symbol'] + " is " + data['data'][action], event.threadID);
+                                c3ChartMaker(yourData, chartDefinition, outputFilePath)
+                                    .then(() => { 
+                                        var msg = {
+                                            body: "Graphed!",
+                                            attachment: fs.createReadStream(__dirname + '/images/graph.png')
+                                        }
+                                        api.sendMessage(msg, event.threadID, () => { console.log("done"); });
+                                    })
+                                    .catch(err => {
+                                        console.error(err);
+                                    });
                             }
-                            
-                        }
+                        });
+                    }
+                    else {
+                        request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
+                            api.sendMessage(error, event.threadID); // Print the error if one occurred
+                            api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
+                            if(body) {
+                                var data = JSON.parse(body);
+                                switch(action) {
+                                    case 'priceUsd':
+                                        api.sendMessage(data['data']['symbol'] + " is $" + data['data'][action], event.threadID, () => { api.sendMessage("What else can I tell you?", event.threadID); });
+                                        break;
+                                    case 'supply':
+                                        // code block
+                                        api.sendMessage("The supply of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("Anything else?", event.threadID); });
+                                        break;
+                                    case 'volumeUsd24Hr':
+                                        // code block
+                                        api.sendMessage("The volume of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else can I help with?", event.threadID); });
+                                        break;
+                                    case 'marketCapUsd':
+                                        // code block
+                                        api.sendMessage("The market cap  of "+data['data']['symbol'] + " is " + data['data'][action], event.threadID, () => { api.sendMessage("What else do you want to know?", event.threadID); });
+                                        break;
+                                    case 'changePercent24Hr':
+                                        // code block
+                                        api.sendMessage(data['data']['symbol'] + " has changed by " + data['data'][action], event.threadID + "% in the last 24 hours.");
+                                        break;
+                                    default:
+                                        api.sendMessage(data['data']['symbol'] + " is " + data['data'][action], event.threadID);
+                                    }
+                                    
+                                }
 
-                    });
+                        });
+
+                    }
+                    
                 }
             })
         	
