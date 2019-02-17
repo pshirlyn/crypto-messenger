@@ -42,6 +42,7 @@ async function runSample(querytext, projectId = 'shapeshift-7d05c') {
   } else {
     console.log(`  No intent matched.`);
   }
+  return result.fulfillmentText;
 }
 
 
@@ -53,43 +54,32 @@ login({email: config.useraccount.email, password: config.useraccount.password}, 
     // Here you can use the api
 
     api.setOptions({
-      selfListen: true,
-      logLevel: "silent",
-      listenEvents: true
+      logLevel: "silent"
     });
 
     var stopListening = api.listen((err, event) => {
         if(err) return console.error(err);
-        switch(event.type) {
-            case "message":
-                if(event.body === '/stop') {
-                    api.sendMessage("Goodbye...", event.threadID);
-                    return stopListening();
-                }
-                else if (event.body.includes('price')) {
-                	//mark message as read
-                	// api.markAsRead(event.threadID, (err) => {
-                 //    	if(err) console.log(err);
-                	// });
-                    runSample(event.body).catch(console.error);
-                    //console.log('called')
-
-                	//request the api for btc
-                	request('https://api.coincap.io/v2/assets/bitcoin', function (error, response, body) {
-        				api.sendMessage(error, event.threadID); // Print the error if one occurred
-        				api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
-        				if(body) {
-                            var data = JSON.parse(body);
-        				    api.sendMessage(data['data']['symbol'] + " is " + data['data']['priceUsd'], event.threadID); // Print the HTML for the Google homepage.
-                        }
-					});
-                }              
-                
-                break;
-            case "event":
-                console.log(event);
-                break;
+        if(event.body === '/stop') {
+            api.sendMessage("Goodbye...", event.threadID);
+            return stopListening();
         }
+        else {
+            runSample(event.body).catch(console.error).then(function(reply) {
+                res = reply.split(" ");
+                action = res[0];
+                ticker = res[1];
+                request('https://api.coincap.io/v2/assets/'+ticker, function (error, response, body) {
+                    api.sendMessage(error, event.threadID); // Print the error if one occurred
+                    api.sendMessage("response" + response && response.statusCode, event.threadID); // Print the response status code if a response was received
+                    if(body) {
+                        var data = JSON.parse(body);
+                        console.log(data)
+                        api.sendMessage(data['data']['symbol'] + " is " + data['data'][action], event.threadID);
+                    }
+                });
+            })
+        	
+        }    
     });
 
 });
